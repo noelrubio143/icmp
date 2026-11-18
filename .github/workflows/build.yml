@@ -1,0 +1,49 @@
+name: Build ICMP tunnel
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "pingtunnel git ref"
+        default: "master"
+      ping_socket:
+        description: "Experimental: ping socket patch (no root)"
+        type: boolean
+        default: false
+      android_api:
+        description: "Android API level"
+        default: "24"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Clone pingtunnel
+        run: |
+          git clone https://github.com/esrrhs/pingtunnel.git src
+          cd src
+          git checkout "${{ github.event.inputs.ref }}"
+          git log -1 --oneline
+
+      - name: Patch to ping socket (experimental)
+        if: ${{ github.event.inputs.ping_socket == 'true' }}
+        run: bash scripts/patch_pingtunnel.sh src
+
+      - name: Build Android .so and Linux server
+        env:
+          API: ${{ github.event.inputs.android_api }}
+        run: bash scripts/build.sh src out
+
+      - name: Show result
+        run: find out -type f -exec ls -l {} \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: icmp-build
+          path: out/
